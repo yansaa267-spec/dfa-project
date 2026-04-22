@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>DFA Explorer</title>
+
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+<style>
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #1e3c72, #2a5298);
+    color: white;
+    margin: 0;
+}
+
+h1 {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.container {
+    width: 90%;
+    margin: auto;
+}
+
+.card {
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 20px;
+    margin: 20px 0;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+}
+
+textarea, input, select {
+    width: 90%;
+    padding: 10px;
+    margin: 10px;
+    border-radius: 10px;
+    border: none;
+}
+
+button {
+    background: #00c6ff;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    margin: 10px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+button:hover {
+    background: #0072ff;
+    transform: scale(1.05);
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+#network {
+    height: 400px;
+    background: white;
+    border-radius: 10px;
+}
+
+table {
+    width: 100%;
+    background: white;
+    color: black;
+    border-collapse: collapse;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+td, th {
+    padding: 10px;
+    border: 1px solid #ccc;
+}
+
+.result {
+    font-weight: bold;
+    margin-top: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>DFA Explorer</h1>
+
+<div class="container">
+
+<div class="card">
+
+<select onchange="pilihSoal(this.value)">
+<option value="">-- Pilih Soal --</option>
+<option value="1">Soal 1</option>
+<option value="2">Soal 2</option>
+<option value="3">Soal 3</option>
+</select>
+
+<textarea id="input"></textarea>
+
+<br>
+Start: <input id="start">
+Final: <input id="final">
+
+<br>
+
+<input type="text" id="string" placeholder="Masukkan string (contoh: abba / 0101)">
+
+<br>
+
+<button onclick="generateDiagram()">Diagram</button>
+<button onclick="generateTable()">Tabel</button>
+<button onclick="simulate()">Simulasi</button>
+
+<div class="result" id="result"></div>
+
+</div>
+
+<div class="grid">
+
+<div class="card">
+<h3>Diagram</h3>
+<div id="network"></div>
+</div>
+
+<div class="card">
+<h3>Tabel</h3>
+<div id="output"></div>
+</div>
+
+</div>
+
+</div>
+
+<script>
+
+function pilihSoal(n) {
+    if (n == "1") {
+        input.value =
+`q0,a,q1
+q0,b,q2
+q1,a,q2
+q1,b,q0
+q2,a,q2
+q2,b,q2`;
+        start.value = "q0";
+        final.value = "q0";
+    }
+
+    else if (n == "2") {
+        input.value =
+`q0,a,q0
+q0,b,q1
+q1,a,q0
+q1,b,q2
+q2,a,q0
+q2,b,q3
+q3,a,q3
+q3,b,q2`;
+        start.value = "q0";
+        final.value = "q0,q1,q2";
+    }
+
+    else if (n == "3") {
+        input.value =
+`q0,0,q2
+q0,1,q1
+q1,0,q3
+q1,1,q0
+q2,0,q0
+q2,1,q3
+q3,0,q1
+q3,1,q2`;
+        start.value = "q0";
+        final.value = "q0";
+    }
+}
+
+function generateDiagram() {
+    let edges = [];
+    let nodes = {};
+    let lines = input.value.split("\n");
+    let finals = final.value.split(",");
+
+    lines.forEach(line => {
+        let [from, label, to] = line.split(",");
+        if (!from) return;
+
+        nodes[from] = true;
+        nodes[to] = true;
+
+        edges.push({from, to, label, arrows: "to"});
+    });
+
+    let nodeArray = Object.keys(nodes).map(n => ({
+        id: n,
+        label: n,
+        shape: finals.includes(n) ? "doubleCircle" : "circle",
+        color: n === start.value ? "#00c6ff" : "#ccc"
+    }));
+
+    new vis.Network(network, {nodes: nodeArray, edges}, {});
+}
+
+function generateTable() {
+    let lines = input.value.split("\n");
+    let states = new Set();
+    let inputs = new Set();
+    let table = {};
+
+    lines.forEach(line => {
+        let [from, sym, to] = line.split(",");
+        states.add(from);
+        states.add(to);
+        inputs.add(sym);
+
+        if (!table[from]) table[from] = {};
+        table[from][sym] = to;
+    });
+
+    states = [...states];
+    inputs = [...inputs];
+
+    let html = "<table><tr><th>δ</th>";
+    inputs.forEach(i => html += "<th>"+i+"</th>");
+    html += "</tr>";
+
+    states.forEach(s => {
+        html += "<tr><td>"+s+"</td>";
+        inputs.forEach(i => {
+            html += "<td>"+(table[s]?.[i] || "-")+"</td>";
+        });
+        html += "</tr>";
+    });
+
+    html += "</table>";
+    output.innerHTML = html;
+}
+
+function simulate() {
+    let transitions = {};
+    let lines = input.value.split("\n");
+
+    lines.forEach(line => {
+        let [from, sym, to] = line.split(",");
+        if (!transitions[from]) transitions[from] = {};
+        transitions[from][sym] = to;
+    });
+
+    let current = start.value;
+    let finals = final.value.split(",");
+    let str = document.getElementById("string").value;
+
+    for (let c of str) {
+        if (!transitions[current] || !transitions[current][c]) {
+            result.innerHTML = "⚠️ Input tidak valid";
+            return;
+        }
+        current = transitions[current][c];
+    }
+
+    if (finals.includes(current)) {
+        result.innerHTML = "✅ DITERIMA";
+        result.style.color = "lightgreen";
+    } else {
+        result.innerHTML = "❌ DITOLAK";
+        result.style.color = "red";
+    }
+}
+
+</script>
+
+</body>
+</html>
